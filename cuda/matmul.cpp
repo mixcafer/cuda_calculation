@@ -12,9 +12,9 @@ torch::Tensor matmul_forward(
     auto C = torch::zeros({M,N},A.options());
 
     matmul_cuda(
-        A.data_ptr<float>(),
-        B.data_ptr<float>(),
-        C.data_ptr<float>(),
+        A.data_ptr<double>(),
+        B.data_ptr<double>(),
+        C.data_ptr<double>(),
         M,K,N
     );
 

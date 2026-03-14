@@ -4,20 +4,21 @@
 #define TILE 32
 
 __global__ void matmul_kernel(
-    const float* A,
-    const float* B,
-    float* C,
+    const double* A,
+    const double* B,
+    double* C,
     int M,
     int K,
     int N)
 {
-    __shared__ float As[TILE][TILE+1];
-    __shared__ float Bs[TILE][TILE+1];
+    __shared__ double As[TILE][TILE+1];
+    __shared__ double Bs[TILE][TILE+1];
 
     int row = blockIdx.y * TILE + threadIdx.y;
     int col = blockIdx.x * TILE + threadIdx.x;
+    if (row >= M || col >= N) return;
 
-    float val = 0;
+    double val = 0;
 
     for(int t=0; t<(K+TILE-1)/TILE; t++)
     {
@@ -41,16 +42,16 @@ __global__ void matmul_kernel(
 
         __syncthreads();
     }
-
+    C[row * N + col] = 0.0f; 
     if(row<M && col<N)
         C[row*N + col] = val;
 }
 
 
 void matmul_cuda(
-    const float* A,
-    const float* B,
-    float* C,
+    const double* A,
+    const double* B,
+    double* C,
     int M,
     int K,
     int N)

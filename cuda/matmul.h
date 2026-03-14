@@ -3,9 +3,9 @@
 #include <torch/extension.h>
 
 void matmul_cuda(
-    const float* A,
-    const float* B,
-    float* C,
+    const double* A,
+    const double* B,
+    double* C,
     int M,
     int K,
     int N
