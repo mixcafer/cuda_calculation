@@ -1,8 +1,6 @@
 # Python 临时文件
 __pycache__/
 *.pyc
-/python/test.py
-/python/mlp.py
-/python/mlp_mylinear.py
+/python/
 
 /build/
