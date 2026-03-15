@@ -1,12 +1,14 @@
 #include "matmul.h"
 #include <cuda_runtime.h>
 
-#define TILE 32
 
-__global__ void matmul_kernel(
-    const double* A,
-    const double* B,
-    double* C,
+#define TILE 32
+#define VEC 2
+
+__global__ void matmul_kernel_vec(
+    const double* __restrict__ A,
+    const double* __restrict__ B,
+    double* __restrict__ C,
     int M,
     int K,
     int N)
@@ -14,37 +16,69 @@ __global__ void matmul_kernel(
     __shared__ double As[TILE][TILE+1];
     __shared__ double Bs[TILE][TILE+1];
 
-    int row = blockIdx.y * TILE + threadIdx.y;
-    int col = blockIdx.x * TILE + threadIdx.x;
-    if (row >= M || col >= N) return;
+    int tx = threadIdx.x;
+    int ty = threadIdx.y;
 
-    double val = 0;
+    int row = blockIdx.y * TILE + ty;
+    int col = blockIdx.x * TILE + tx * VEC;
+
+    double val[VEC] = {0.0,0.0};
 
     for(int t=0; t<(K+TILE-1)/TILE; t++)
     {
+        int tiled_k = t*TILE;
 
-        if(row < M && t*TILE+threadIdx.x < K)
-            As[threadIdx.y][threadIdx.x] =
-                A[row*K + t*TILE + threadIdx.x];
-        else
-            As[threadIdx.y][threadIdx.x] = 0;
+        // vector load A
+        if(row < M && tiled_k + tx*VEC < K)
+        {
+            double2 a = *reinterpret_cast<const double2*>(
+                &A[row*K + tiled_k + tx*VEC]
+            );
 
-        if(col < N && t*TILE+threadIdx.y < K)
-            Bs[threadIdx.y][threadIdx.x] =
-                B[(t*TILE+threadIdx.y)*N + col];
+            As[ty][tx*VEC]   = a.x;
+            As[ty][tx*VEC+1] = a.y;
+        }
         else
-            Bs[threadIdx.y][threadIdx.x] = 0;
+        {
+            As[ty][tx*VEC] = 0.0;
+            As[ty][tx*VEC+1] = 0.0;
+        }
+
+        // vector load B
+        if(col < N && tiled_k + ty < K)
+        {
+            double2 b = *reinterpret_cast<const double2*>(
+                &B[(tiled_k + ty)*N + col]
+            );
+
+            Bs[ty][tx*VEC]   = b.x;
+            Bs[ty][tx*VEC+1] = b.y;
+        }
+        else
+        {
+            Bs[ty][tx*VEC] = 0.0;
+            Bs[ty][tx*VEC+1] = 0.0;
+        }
 
         __syncthreads();
 
         for(int i=0;i<TILE;i++)
-            val += As[threadIdx.y][i] * Bs[i][threadIdx.x];
+        {
+            double a = As[ty][i];
+
+            val[0] += a * Bs[i][tx*VEC];
+            val[1] += a * Bs[i][tx*VEC+1];
+        }
 
         __syncthreads();
     }
-    C[row * N + col] = 0.0f; 
-    if(row<M && col<N)
-        C[row*N + col] = val;
+
+    if(row < M && col < N)
+    {
+        C[row*N + col] = val[0];
+        if(col+1 < N)
+            C[row*N + col + 1] = val[1];
+    }
 }
 
 
@@ -56,12 +90,12 @@ void matmul_cuda(
     int K,
     int N)
 {
-    dim3 block(TILE,TILE);
+    dim3 block(TILE/2,TILE);
 
     dim3 grid(
         (N+TILE-1)/TILE,
         (M+TILE-1)/TILE
     );
 
-    matmul_kernel<<<grid,block>>>(A,B,C,M,K,N);
+    matmul_kernel_vec<<<grid,block>>>(A,B,C,M,K,N);
 }
