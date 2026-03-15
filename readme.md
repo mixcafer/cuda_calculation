@@ -1,6 +1,7 @@
 # CUDA Matrix Multiplication
 
 本项目实现了基于 CUDA 的矩阵乘法。
+1. 实现共享内存，向量化加载，bank conflict避免优化
 
 ## 编译方法
 
