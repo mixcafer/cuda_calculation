@@ -11,11 +11,18 @@ torch::Tensor matmul_forward(
 
     auto C = torch::zeros({M,N},A.options());
 
-    matmul_cuda(
-        A.data_ptr<double>(),
-        B.data_ptr<double>(),
-        C.data_ptr<double>(),
-        M,K,N
+    AT_DISPATCH_FLOATING_TYPES_AND_HALF(
+        A.scalar_type(),
+        "matmul_cuda",
+        ([&]
+        {
+            matmul_cuda_dispatch<scalar_t>(
+                A.data_ptr<scalar_t>(),
+                B.data_ptr<scalar_t>(),
+                C.data_ptr<scalar_t>(),
+                M,K,N
+            );
+        })
     );
 
     return C;
